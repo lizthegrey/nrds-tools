@@ -188,7 +188,7 @@ class KosChecker:
       for person in entry:
         if person.isspace() or len(person) == 0:
           continue
-        person = person.strip()
+        person = person.strip(' .')
         try:
           if self.koscheck(person):
             kos.append(person)
