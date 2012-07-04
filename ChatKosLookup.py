@@ -137,6 +137,7 @@ class KosChecker:
 
   def koscheck_internal(self, entity):
     """Looks up KOS entries by directly calling the CVA KOS API."""
+    entity = entity.strip()
     result = self.cache.retrieve(KOS_CHECKER_URL, KOS_CHECKER_URL,
                                  {'entity': entity})
     if not result:
