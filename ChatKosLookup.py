@@ -182,23 +182,33 @@ class KosChecker:
     for entry in tail_file(filename):
       kos = []
       notkos = []
+      error = []
       for person in entry:
-        if self.koscheck(person):
-          kos.append(person)
-        else:
-          notkos.append(person)
+        if person.isspace() or len(person) == 0:
+          continue
+        try:
+          if self.koscheck(person):
+            kos.append(person)
+          else:
+            notkos.append(person)
+        except:
+          error.append(person)
 
-      
       fmt = '%s%6s (%3d) %s\033[0m'
       print fmt % ('\033[31m', 'KOS', len(kos), len(kos) * '*')
       print fmt % ('\033[34m', 'NotKOS', len(notkos), len(notkos) * '*')
+      if len(error) > 0:
+        print fmt % ('\033[33m', 'Error', len(error), len(error) * '*')
       print
       for person in kos:
         print '\033[31m%s\033[0m' % person
       print
       for person in notkos:
         print '\033[34m%s\033[0m' % person
-      print '\n-----\n'
+      print
+      for person in error:
+        print '\033[33m%s\033[0m' % person
+      print '-----'
 
 if __name__ == '__main__':
   if len(sys.argv) > 1:
