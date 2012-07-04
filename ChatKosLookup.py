@@ -150,8 +150,8 @@ class KosChecker:
       # Require exact match
       if value['label'] != entity:
         continue
-      kos = value['kos']
-      while value['type'] != 'alliance':
+      kos = False
+      while True:
         kos |= value['kos']
         if 'npc' in value and value['npc'] and not kos:
           # Signal that further lookup is needed of player's last corp
@@ -160,6 +160,8 @@ class KosChecker:
           value = value['corp']
         elif 'alliance' in value:
           value = value['alliance']
+        else:
+          return kos
       break
     return kos
 
