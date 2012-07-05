@@ -91,7 +91,7 @@ class CacheObject:
 
 def tail_file(filename):
   """Repeatedly reads the end of a chat log and filters for names."""
-  handle = open(filename)
+  handle = open(filename, 'rb')
   while True:
     where = handle.tell()
     line = handle.readline()
