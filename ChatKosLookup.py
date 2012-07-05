@@ -3,10 +3,9 @@
 """Checks pilots mentioned in the EVE chatlogs against a KOS list."""
 
 from eveapi import eveapi
-import sys, string, os, tempfile, time, json, urllib2, zlib, cPickle
+import sys, string, os, tempfile, time, json, urllib2, zlib, cPickle, urllib
 
-KOS_CHECKER_URL = 'http://kos.cva-eve.org/api/?c=json&' \
-                  'type=unit&details&icon=64&max=10&offset=0&q=%s'
+KOS_CHECKER_URL = 'http://kos.cva-eve.org/api/?c=json&type=unit&%s'
 NPC = 'npc'
 
 class SimpleCache(object):
@@ -140,7 +139,8 @@ class KosChecker:
     result = self.cache.retrieve(KOS_CHECKER_URL, KOS_CHECKER_URL,
                                  {'entity': entity})
     if not result:
-      result = json.load(urllib2.urlopen(KOS_CHECKER_URL % entity))
+      result = json.load(urllib2.urlopen(
+          KOS_CHECKER_URL % urllib.urlencode({'q' : entity})))
       obj = CacheObject(60*60)
       self.cache.store(KOS_CHECKER_URL, KOS_CHECKER_URL,
                        {'entity': entity}, result, obj)
