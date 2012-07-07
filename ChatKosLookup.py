@@ -3,12 +3,7 @@
 """Checks pilots mentioned in the EVE chatlogs against a KOS list."""
 
 from eveapi import eveapi
-import sys, string, os, tempfile, time, urllib2, zlib, cPickle, urllib
-try:
-  import json
-except ImportError:
-  import simplejson as json
-
+import sys, string, os, tempfile, time, json, urllib2, zlib, cPickle, urllib
 
 KOS_CHECKER_URL = 'http://kos.cva-eve.org/api/?c=json&type=unit&%s'
 NPC = 'npc'
@@ -94,21 +89,23 @@ class CacheObject:
     self.cachedUntil = valid_duration_seconds
     self.currentTime = 0
 
-def tail_file(filename):
-  """Repeatedly reads the end of a chat log and filters for names."""
-  handle = open(filename, 'rb')
-  while True:
-    where = handle.tell()
-    line = handle.readline()
+class FileTailer:
+  def __init__(self, filename):
+    self.handle = open(filename, 'rb')
+    self.where = 0
+
+  def poll(self):
+    self.where = self.handle.tell()
+    line = self.handle.readline()
     if not line:
-      time.sleep(1)
-      handle.seek(where)
+      self.handle.seek(self.where)
+      return None
     else:
       sanitized = ''.join([x for x in line if x in string.printable and
                                               x not in ['\n', '\r']])
       if not '> xxx ' in sanitized:
-        continue
-      yield sanitized.split('> xxx ')[1].split('  ')
+        return None
+      return sanitized.split('> xxx ')[1].split('  ')
 
 class KosChecker:
   """Maintains API state and performs KOS checks."""
@@ -184,43 +181,60 @@ class KosChecker:
                 self.eveapi.eve.CharacterName(
                     ids=','.join(str(x) for x in unique_corps)).characters]
 
-  def loop(self, filename):
-    """Performs KOS processing on each line read from the log file."""
-    for entry in tail_file(filename):
-      kos = []
-      notkos = []
-      error = []
-      for person in entry:
-        if person.isspace() or len(person) == 0:
-          continue
-        person = person.strip(' .')
-        try:
-          if self.koscheck(person):
-            kos.append(person)
-          else:
-            notkos.append(person)
-        except:
-          error.append(person)
+  def loop(self, filename, handler):
+    """Performs KOS processing on each line read from the log file.
+    
+    handler is a function of 3 args: (kos, notkos, error) that is called 
+    every time there is a new KOS result.
+    """
+    tailer = FileTailer(filename)
+    while True:
+      entry = tailer.poll()
+      if not entry:
+        time.sleep(1.0)
+	continue
+      kos, not_kos, error = self.koscheck_entry(entry)
+      handler(kos, not_kos, error)
 
-      fmt = '%s%6s (%3d) %s\033[0m'
-      print fmt % ('\033[31m', 'KOS', len(kos), len(kos) * '*')
-      print fmt % ('\033[34m', 'NotKOS', len(notkos), len(notkos) * '*')
-      if len(error) > 0:
-        print fmt % ('\033[33m', 'Error', len(error), len(error) * '*')
-      print
-      for person in kos:
-        print '\033[31m%s\033[0m' % person
-      print
-      for person in notkos:
-        print '\033[34m%s\033[0m' % person
-      print
-      for person in error:
-        print '\033[33m%s\033[0m' % person
-      print '-----'
+  def koscheck_entry(self, entry):
+    kos = []
+    notkos = []
+    error = []
+    for person in entry:
+      if person.isspace() or len(person) == 0:
+        continue
+      person = person.strip(' .')
+      try:
+        if self.koscheck(person):
+          kos.append(person)
+        else:
+          notkos.append(person)
+      except:
+        error.append(person)
+    return (kos, notkos, error)
+
+
+def stdout_handler(kos, notkos, error):
+  fmt = '%s%6s (%3d) %s\033[0m'
+  print fmt % ('\033[31m', 'KOS', len(kos), len(kos) * '*')
+  print fmt % ('\033[34m', 'NotKOS', len(notkos), len(notkos) * '*')
+  if len(error) > 0:
+    print fmt % ('\033[33m', 'Error', len(error), len(error) * '*')
+  print
+  for person in kos:
+    print '\033[31m%s\033[0m' % person
+  print
+  for person in notkos:
+    print '\033[34m%s\033[0m' % person
+  print
+  for person in error:
+    print '\033[33m%s\033[0m' % person
+  print '-----'
+
 
 if __name__ == '__main__':
   if len(sys.argv) > 1:
-    KosChecker().loop(sys.argv[1])
+    KosChecker().loop(sys.argv[1], stdout_handler)
   else:
     print ('Usage: %s ~/EVE/logs/ChatLogs/Fleet_YYYYMMDD_HHMMSS.txt' %
            sys.argv[0])
