@@ -9,6 +9,8 @@ import ChatKosLookup
 
 
 DIVIDER = '-' * 40
+PLUS_TAG = '[+]'
+MINUS_TAG = u'[\u2212]'  # Unicode MINUS SIGN
 
 
 # Cargo-culted from:
@@ -56,46 +58,39 @@ class MainFrame(wx.Frame):
     if not entry:
       wx.FutureCall(1000, self.KosCheckerPoll)
       return
-    kos, not_kos, error = self.checker.koscheck_entry(entry)
+    kos, not_kos, error = self.checker.koscheck_logentry(entry)
     new_labels = []
     if kos or not_kos:
-      new_labels.append('KOS: %d  Not KOS: %d' % (len(kos), len(not_kos)))
+      new_labels.append(('black',
+                        'KOS: %d  Not KOS: %d' % (len(kos), len(not_kos))))
     if kos:
-      # Unicode MINUS SIGN
-      new_labels.extend([u'[\u2212] %s' % p for p in kos])
+      new_labels.extend([('red', u'%s %s' % (MINUS_TAG, p)) for p in kos])
     if not_kos:
       if kos:
-        new_labels.append(' ')
-      new_labels.extend(['[+] %s' % p for p in not_kos])
+        new_labels.append(('black', ' '))
+      new_labels.extend([('blue', '%s %s' % (PLUS_TAG, p)) for p in not_kos])
     if error:
-      new_labels.append('Error: %d' % len(error))
-      new_labels.extend(error)
+      new_labels.append(('black', 'Error: %d' % len(error)))
+      new_labels.extend([('black', p) for p in error])
     if new_labels:
-      new_labels.append(DIVIDER)
+      new_labels.append(('black', DIVIDER))
     self.labels = new_labels + self.labels
     self.labels = self.labels[:100]
     self.UpdateLabels()
     wx.FutureCall(100, self.KosCheckerPoll)
 
   def UpdateLabels(self):
-    current_color = None
-    for i, label in enumerate(self.labels):
-      if label.startswith('[+]'):
-        current_color = 'blue'
-      elif label.startswith(u'[\u2212]'):
-        current_color = 'red'
-      else:
-	current_color = 'black'
-      self.text_boxes[i].SetForegroundColour(current_color)
+    for i, (color, label) in enumerate(self.labels):
+      self.text_boxes[i].SetForegroundColour(color)
       self.text_boxes[i].SetLabel(label)
 
   def GetWorkingFile(self):
     today = datetime.date.today().strftime('%Y%m%d')
     wildcards = [
         'Fleet logs (today)', 'Fleet_%s_*.txt' % today,
-	'Fleet logs (all)', 'Fleet*.txt',
-	'All logs (today)', '*_%s_*.txt' % today,
-	'All logs', '*.txt']
+        'Fleet logs (all)', 'Fleet*.txt',
+        'All logs (today)', '*_%s_*.txt' % today,
+        'All logs', '*.txt']
     dialog = wx.FileDialog(
         self,
         'Choose a log file',

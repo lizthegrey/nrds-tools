@@ -191,11 +191,11 @@ class KosChecker:
       entry = tailer.poll()
       if not entry:
         time.sleep(1.0)
-	continue
-      kos, not_kos, error = self.koscheck_entry(entry)
+        continue
+      kos, not_kos, error = self.koscheck_logentry(entry)
       handler(kos, not_kos, error)
 
-  def koscheck_entry(self, entry):
+  def koscheck_logentry(self, entry):
     kos = []
     notkos = []
     error = []
