@@ -3,7 +3,12 @@
 """Checks pilots mentioned in the EVE chatlogs against a KOS list."""
 
 from eveapi import eveapi
-import sys, string, os, tempfile, time, json, urllib2, zlib, cPickle, urllib
+import sys, string, os, tempfile, time, urllib2, zlib, cPickle, urllib
+try:
+  import json
+except ImportError:
+  import simplejson as json
+
 
 KOS_CHECKER_URL = 'http://kos.cva-eve.org/api/?c=json&type=unit&%s'
 NPC = 'npc'
@@ -91,7 +96,7 @@ class CacheObject:
 
 def tail_file(filename):
   """Repeatedly reads the end of a chat log and filters for names."""
-  handle = open(filename)
+  handle = open(filename, 'rb')
   while True:
     where = handle.tell()
     line = handle.readline()
