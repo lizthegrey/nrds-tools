@@ -123,8 +123,7 @@ class KosChecker:
       # we'll get bounced again.
       history = self.employment_history(player)
 
-      if kos == None:
-        kos = self.koscheck_internal(history[0])
+      kos = self.koscheck_internal(history[0])
 
       idx = 1
       while kos == NPC and idx < len(history):
