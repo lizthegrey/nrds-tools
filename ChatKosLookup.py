@@ -149,7 +149,7 @@ class KosChecker:
     kos = None
     for value in result['results']:
       # Require exact match
-      if value['label'] != entity:
+      if value['label'].lower() != entity.lower():
         continue
       kos = False
       while True:
