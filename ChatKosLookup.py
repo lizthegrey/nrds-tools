@@ -7,6 +7,7 @@ import sys, string, os, tempfile, time, json, urllib2, zlib, cPickle, urllib
 
 KOS_CHECKER_URL = 'http://kos.cva-eve.org/api/?c=json&type=unit&%s'
 NPC = 'npc'
+LASTCORP = 'lastcorp'
 
 class SimpleCache(object):
   """Implements a memory and disk-based cache of previous API calls."""
@@ -99,13 +100,20 @@ class FileTailer:
     line = self.handle.readline()
     if not line:
       self.handle.seek(self.where)
-      return None
+      return (None, None)
     else:
       sanitized = ''.join([x for x in line if x in string.printable and
                                               x not in ['\n', '\r']])
       if not '> xxx ' in sanitized:
-        return None
-      return sanitized.split('> xxx ')[1].split('  ')
+        return (None, None)
+      person, command = sanitized.split('> xxx ', 1)
+      person = person.split(']')[1].strip()
+      mashup = command.split('#', 1)
+      names = mashup[0]
+      comment = '%s >' % person
+      if len(mashup) > 1:
+        comment = '%s > %s' % (person, mashup[1].strip())
+      return (names.split('  '), comment)
 
 class KosChecker:
   """Maintains API state and performs KOS checks."""
@@ -129,10 +137,12 @@ class KosChecker:
       while kos == NPC and idx < len(history):
         kos = self.koscheck_internal(history[idx])
         idx = idx + 1
+      if kos != None and kos != NPC and kos != False:
+        kos = LASTCORP
 
     if kos == None or kos == NPC:
       kos = False
-    
+
     return kos
 
   def koscheck_internal(self, entity):
@@ -153,7 +163,8 @@ class KosChecker:
         continue
       kos = False
       while True:
-        kos |= value['kos']
+        if value['kos']:
+          kos = value['type']
         if 'npc' in value and value['npc'] and not kos:
           # Signal that further lookup is needed of player's last corp
           return NPC
@@ -188,12 +199,12 @@ class KosChecker:
     """
     tailer = FileTailer(filename)
     while True:
-      entry = tailer.poll()
+      entry, comment = tailer.poll()
       if not entry:
         time.sleep(1.0)
         continue
       kos, not_kos, error = self.koscheck_logentry(entry)
-      handler(kos, not_kos, error)
+      handler(comment, kos, not_kos, error)
 
   def koscheck_logentry(self, entry):
     kos = []
@@ -204,8 +215,9 @@ class KosChecker:
         continue
       person = person.strip(' .')
       try:
-        if self.koscheck(person):
-          kos.append(person)
+        result = self.koscheck(person)
+        if result != False:
+          kos.append((person, result))
         else:
           notkos.append(person)
       except:
@@ -213,21 +225,23 @@ class KosChecker:
     return (kos, notkos, error)
 
 
-def stdout_handler(kos, notkos, error):
+def stdout_handler(comment, kos, notkos, error):
   fmt = '%s%6s (%3d) %s\033[0m'
+  if comment:
+    print comment
   print fmt % ('\033[31m', 'KOS', len(kos), len(kos) * '*')
   print fmt % ('\033[34m', 'NotKOS', len(notkos), len(notkos) * '*')
   if len(error) > 0:
     print fmt % ('\033[33m', 'Error', len(error), len(error) * '*')
   print
-  for person in kos:
-    print '\033[31m%s\033[0m' % person
+  for (person, reason) in kos:
+    print u'\033[31m[\u2212] %s\033[0m (%s)' % (person, reason)
   print
   for person in notkos:
-    print '\033[34m%s\033[0m' % person
+    print '\033[34m[+] %s\033[0m' % person
   print
   for person in error:
-    print '\033[33m%s\033[0m' % person
+    print '\033[33m[?] %s\033[0m' % person
   print '-----'
 
 

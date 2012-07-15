@@ -58,13 +58,16 @@ class MainFrame(wx.Frame):
     if not entry:
       wx.FutureCall(1000, self.KosCheckerPoll)
       return
-    kos, not_kos, error = self.checker.koscheck_logentry(entry)
+    comment, kos, not_kos, error = self.checker.koscheck_logentry(entry)
     new_labels = []
+    if comment:
+      new_labels.append(('black', comment))
     if kos or not_kos:
       new_labels.append(('black',
                         'KOS: %d  Not KOS: %d' % (len(kos), len(not_kos))))
     if kos:
-      new_labels.extend([('red', u'%s %s' % (MINUS_TAG, p)) for p in kos])
+      new_labels.extend([('red', u'%s %s (%s)' % (MINUS_TAG, p, reason))
+                         for (p, reason) in kos])
     if not_kos:
       if kos:
         new_labels.append(('black', ' '))
