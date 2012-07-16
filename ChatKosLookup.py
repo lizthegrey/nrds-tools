@@ -160,7 +160,7 @@ class KosChecker:
 
     kos = None
     for value in result['results']:
-      # Require exact match
+      # Require exact match (case-insensitively).
       if value['label'].lower() != entity.lower():
         continue
       if value['type'] == 'alliance' and value['ticker'] == None:
