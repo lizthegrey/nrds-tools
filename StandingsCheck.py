@@ -4,6 +4,8 @@ from eveapi import eveapi
 import ChatKosLookup
 import sys
 
+MAX_NPC_AGENT = 3020000
+
 class StandingsChecker:
   def __init__(self, keyID, vCode):
     self.checker = ChatKosLookup.KosChecker()
@@ -21,7 +23,7 @@ class StandingsChecker:
 
   def check_internal(self, contacts):
     entities = [(row.contactID, row.contactName, row.standing)
-                for row in contacts if row.contactID > 3100000]
+                for row in contacts if row.contactID > MAX_NPC_AGENT]
 
     alive_alliances = [row.allianceID for row in
         self.checker.eveapi.eve.AllianceList(version=1).alliances]
