@@ -132,13 +132,15 @@ class KosChecker:
       history = self.employment_history(player)
 
       kos = self.koscheck_internal(history[0])
+      in_npc_corp = (kos == NPC)
 
-      idx = 1
-      while kos == NPC and idx < len(history):
-        kos = self.koscheck_internal(history[idx])
+      idx = 0
+      while kos == NPC and (idx + 1) < len(history):
         idx = idx + 1
-      if kos != None and kos != NPC and kos != False:
-        kos = LASTCORP
+        kos = self.koscheck_internal(history[idx])
+
+      if in_npc_corp and kos != None and kos != NPC and kos != False:
+        kos = '%s: %s' % (LASTCORP, history[idx])
 
     if kos == None or kos == NPC:
       kos = False
@@ -164,7 +166,7 @@ class KosChecker:
       kos = False
       while True:
         if value['kos']:
-          kos = value['type']
+          kos = '%s: %s' % (value['type'], value['label'])
         if 'npc' in value and value['npc'] and not kos:
           # Signal that further lookup is needed of player's last corp
           return NPC
