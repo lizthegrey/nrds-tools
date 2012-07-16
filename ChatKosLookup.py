@@ -163,6 +163,9 @@ class KosChecker:
       # Require exact match
       if value['label'].lower() != entity.lower():
         continue
+      if value['type'] == 'alliance' and value['ticker'] == None:
+        # Bogus alliance created instead of NPC corp.
+        continue
       kos = False
       while True:
         if value['kos']:
