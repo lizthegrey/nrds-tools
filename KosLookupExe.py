@@ -54,11 +54,11 @@ class MainFrame(wx.Frame):
     self.KosCheckerPoll()
 
   def KosCheckerPoll(self):
-    entry = self.tailer.poll()
+    entry, comment = self.tailer.poll()
     if not entry:
       wx.FutureCall(1000, self.KosCheckerPoll)
       return
-    comment, kos, not_kos, error = self.checker.koscheck_logentry(entry)
+    kos, not_kos, error = self.checker.koscheck_logentry(entry)
     new_labels = []
     if comment:
       new_labels.append(('black', comment))
