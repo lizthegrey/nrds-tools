@@ -47,6 +47,7 @@ class MainFrame(wx.Frame):
     if not self.working_file:
       self.Close()
       return
+    self.UpdateTitle(self.working_file)
     self.checker = ChatKosLookup.KosChecker()
     self.tailer = ChatKosLookup.FileTailer(self.working_file)
     self.labels = []
@@ -65,7 +66,11 @@ class MainFrame(wx.Frame):
     file, but when running from source, this method pulls it in from the
     directory containing the python modules.
     """
-    icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')
+    try:
+      icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')
+    except NameError:
+      # __file__ does not exist
+      return
     if os.path.exists(icon_path):
       self.SetIcon(wx.Icon(icon_path, wx.BITMAP_TYPE_ICO))
 
@@ -74,7 +79,6 @@ class MainFrame(wx.Frame):
     if not entry:
       wx.FutureCall(1000, self.KosCheckerPoll)
       return
-    self.UpdateTitle(self.working_file)
     kos, not_kos, error = self.checker.koscheck_logentry(entry)
     new_labels = []
     if comment:
