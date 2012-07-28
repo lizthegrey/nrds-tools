@@ -74,6 +74,7 @@ class MainFrame(wx.Frame):
     if not entry:
       wx.FutureCall(1000, self.KosCheckerPoll)
       return
+    self.UpdateTitle(self.working_file)
     kos, not_kos, error = self.checker.koscheck_logentry(entry)
     new_labels = []
     if comment:
@@ -107,6 +108,12 @@ class MainFrame(wx.Frame):
     for i, (color, label) in enumerate(self.labels):
       self.text_boxes[i].SetForegroundColour(color)
       self.text_boxes[i].SetLabel(label)
+
+  def UpdateTitle(self, working_file):
+    filename = os.path.basename(working_file)
+    name = filename.rsplit('_', 2)[0]
+    name.replace('_', ' ')
+    self.SetLabel(name)
 
   def GetWorkingFile(self):
     today = datetime.date.today().strftime('%Y%m%d')
