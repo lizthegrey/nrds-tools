@@ -5,6 +5,11 @@ import os
 
 import wx
 
+try:
+  import winsound
+except ImportError:
+  winsound = None
+
 import ChatKosLookup
 
 
@@ -77,6 +82,7 @@ class MainFrame(wx.Frame):
       new_labels.append(('black',
                         'KOS: %d  Not KOS: %d' % (len(kos), len(not_kos))))
     if kos:
+      self.PlayKosAlertSound()
       new_labels.extend([('red', u'%s %s (%s)' % (MINUS_TAG, p, reason))
                          for (p, reason) in kos])
     if not_kos:
@@ -92,6 +98,10 @@ class MainFrame(wx.Frame):
     self.labels = self.labels[:100]
     self.UpdateLabels()
     wx.FutureCall(100, self.KosCheckerPoll)
+
+  def PlayKosAlertSound(self):
+    if winsound:
+      winsound.PlaySound("SystemQuestion", winsound.SND_ALIAS)
 
   def UpdateLabels(self):
     for i, (color, label) in enumerate(self.labels):
