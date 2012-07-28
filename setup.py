@@ -1,5 +1,6 @@
 from distutils.core import setup
 import py2exe
+import os
 import sys
 
 if len(sys.argv) == 1:
