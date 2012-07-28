@@ -37,6 +37,7 @@ def GetEveLogsDir():
 class MainFrame(wx.Frame):
   def __init__(self, *args, **kwargs):
     wx.Frame.__init__(self, *args, **kwargs)
+    self.UpdateIcon()
     self.working_file = self.GetWorkingFile()
     if not self.working_file:
       self.Close()
@@ -52,6 +53,16 @@ class MainFrame(wx.Frame):
     self.SetBackgroundColour('white')
     self.Show()
     self.KosCheckerPoll()
+
+  def UpdateIcon(self):
+    """
+    If running from py2exe, then the icon is implicitly obtained from the .exe
+    file, but when running from source, this method pulls it in from the
+    directory containing the python modules.
+    """
+    icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')
+    if os.path.exists(icon_path):
+      self.SetIcon(wx.Icon(icon_path, wx.BITMAP_TYPE_ICO))
 
   def KosCheckerPoll(self):
     entry, comment = self.tailer.poll()
