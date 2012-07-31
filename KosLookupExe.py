@@ -5,6 +5,11 @@ import os
 
 import wx
 
+try:
+  import winsound
+except ImportError:
+  winsound = None
+
 import ChatKosLookup
 
 
@@ -37,10 +42,12 @@ def GetEveLogsDir():
 class MainFrame(wx.Frame):
   def __init__(self, *args, **kwargs):
     wx.Frame.__init__(self, *args, **kwargs)
+    self.UpdateIcon()
     self.working_file = self.GetWorkingFile()
     if not self.working_file:
       self.Close()
       return
+    self.UpdateTitle(self.working_file)
     self.checker = ChatKosLookup.KosChecker()
     self.tailer = ChatKosLookup.FileTailer(self.working_file)
     self.labels = []
@@ -52,6 +59,20 @@ class MainFrame(wx.Frame):
     self.SetBackgroundColour('white')
     self.Show()
     self.KosCheckerPoll()
+
+  def UpdateIcon(self):
+    """
+    If running from py2exe, then the icon is implicitly obtained from the .exe
+    file, but when running from source, this method pulls it in from the
+    directory containing the python modules.
+    """
+    try:
+      icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')
+    except NameError:
+      # __file__ does not exist
+      return
+    if os.path.exists(icon_path):
+      self.SetIcon(wx.Icon(icon_path, wx.BITMAP_TYPE_ICO))
 
   def KosCheckerPoll(self):
     entry, comment = self.tailer.poll()
@@ -66,6 +87,7 @@ class MainFrame(wx.Frame):
       new_labels.append(('black',
                         'KOS: %d  Not KOS: %d' % (len(kos), len(not_kos))))
     if kos:
+      self.PlayKosAlertSound()
       new_labels.extend([('red', u'%s %s (%s)' % (MINUS_TAG, p, reason))
                          for (p, reason) in kos])
     if not_kos:
@@ -82,10 +104,20 @@ class MainFrame(wx.Frame):
     self.UpdateLabels()
     wx.FutureCall(100, self.KosCheckerPoll)
 
+  def PlayKosAlertSound(self):
+    if winsound:
+      winsound.PlaySound("SystemQuestion", winsound.SND_ALIAS)
+
   def UpdateLabels(self):
     for i, (color, label) in enumerate(self.labels):
       self.text_boxes[i].SetForegroundColour(color)
       self.text_boxes[i].SetLabel(label)
+
+  def UpdateTitle(self, working_file):
+    filename = os.path.basename(working_file)
+    name = filename.rsplit('_', 2)[0]
+    name.replace('_', ' ')
+    self.SetLabel(name)
 
   def GetWorkingFile(self):
     today = datetime.date.today().strftime('%Y%m%d')
