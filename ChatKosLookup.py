@@ -2,93 +2,13 @@
 
 """Checks pilots mentioned in the EVE chatlogs against a KOS list."""
 
-from eveapi import eveapi
-import sys, string, os, tempfile, time, json, urllib2, zlib, cPickle, urllib
+from evelink import api, eve
+from evelink.cache import shelf
+import sys, string, os, tempfile, time, json, urllib2, urllib
 
 KOS_CHECKER_URL = 'http://kos.cva-eve.org/api/?c=json&type=unit&%s'
 NPC = 'npc'
 LASTCORP = 'lastcorp'
-
-class SimpleCache(object):
-  """Implements a memory and disk-based cache of previous API calls."""
-
-  def __init__(self, debug=False):
-    self.debug = debug
-    self.count = 0
-    self.cache = {}
-    self.tempdir = os.path.join(tempfile.gettempdir(), 'eveapi')
-    if not os.path.exists(self.tempdir):
-      os.makedirs(self.tempdir)
-
-  def log(self, what):
-    """Outputs debug information if the debug flag is set."""
-    if self.debug:
-      print '[%d] %s' % (self.count, what)
-
-  def retrieve(self, host, path, params):
-    """Retrieves a cached value, or returns None if not cached."""
-    # eveapi asks if we have this request cached
-    key = hash((host, path, frozenset(params.items())))
-
-    self.count += 1  # for logging
-
-    # see if we have the requested page cached...
-    cached = self.cache.get(key, None)
-    if cached:
-      cache_file = None
-      #print "'%s': retrieving from memory" % path
-    else:
-      # it wasn't cached in memory, but it might be on disk.
-      cache_file = os.path.join(self.tempdir, str(key) + '.cache')
-      if os.path.exists(cache_file):
-        self.log('%s: retrieving from disk at %s' % (path, cache_file))
-        handle = open(cache_file, 'rb')
-        cached = self.cache[key] = cPickle.loads(
-            zlib.decompress(handle.read()))
-        handle.close()
-
-    if cached:
-      # check if the cached doc is fresh enough
-      if time.time() < cached[0]:
-        self.log('%s: returning cached document' % path)
-        return cached[1]  # return the cached XML doc
-
-      # it's stale. purge it.
-      self.log('%s: cache expired, purging!' % path)
-      del self.cache[key]
-      if cache_file:
-        os.remove(cache_file)
-
-    self.log('%s: not cached, fetching from server...' % path)
-    # we didn't get a cache hit so return None to indicate that the data
-    # should be requested from the server.
-    return None
-
-  def store(self, host, path, params, doc, obj):
-    """Saves a cached value to the backing stores."""
-    # eveapi is asking us to cache an item
-    key = hash((host, path, frozenset(params.items())))
-
-    cached_for = obj.cachedUntil - obj.currentTime
-    if cached_for:
-      self.log('%s: cached (%d seconds)' % (path, cached_for))
-
-      cached_until = time.time() + cached_for
-
-      # store in memory
-      cached = self.cache[key] = (cached_until, doc)
-
-      # store in cache folder
-      cache_file = os.path.join(self.tempdir, str(key) + '.cache')
-      handle = open(cache_file, 'wb')
-      handle.write(zlib.compress(cPickle.dumps(cached, -1)))
-      handle.close()
-
-class CacheObject:
-  """Allows caching objects that do not come from the EVE api."""
-  def __init__(self, valid_duration_seconds):
-    self.cachedUntil = valid_duration_seconds
-    self.currentTime = 0
 
 class FileTailer:
   def __init__(self, filename):
@@ -106,21 +26,26 @@ class FileTailer:
                                               x not in ['\n', '\r']])
       if not '> xxx ' in sanitized:
         return (None, None)
-      person, command = sanitized.split('> xxx ', 1)
-      person = person.split(']')[1].strip()
+      left, command = sanitized.split('> xxx ', 1)
+      timestamp = left.split(']', 1)[0].split(' ')[2]
+      person = left.split(']', 1)[1].strip()
       mashup = command.split('#', 1)
       names = mashup[0]
-      comment = '%s >' % person
+      comment = '[%s] %s >' % (timestamp, person)
       if len(mashup) > 1:
-        comment = '%s > %s' % (person, mashup[1].strip())
+        comment = '[%s] %s > %s' % (timestamp, person, mashup[1].strip())
       return (names.split('  '), comment)
 
 class KosChecker:
   """Maintains API state and performs KOS checks."""
 
   def __init__(self):
-    self.cache = SimpleCache()
-    self.eveapi = eveapi.EVEAPIConnection(cacheHandler=self.cache)
+    # Set up caching.
+    cache_file = os.path.join(tempfile.gettempdir(), 'koscheck')
+    self.cache = shelf.ShelveCache(cache_file)
+
+    self.api = api.API(cache=self.cache)
+    self.eve = eve.EVE(api=self.api)
 
   def koscheck(self, player):
     """Checks a given player against the KOS list, including esoteric rules."""
@@ -149,14 +74,13 @@ class KosChecker:
 
   def koscheck_internal(self, entity):
     """Looks up KOS entries by directly calling the CVA KOS API."""
-    result = self.cache.retrieve(KOS_CHECKER_URL, KOS_CHECKER_URL,
-                                 {'entity': entity})
+    cache_key = self.api._cache_key(KOS_CHECKER_URL, {'entity': entity})
+
+    result = self.cache.get(cache_key)
     if not result:
       result = json.load(urllib2.urlopen(
           KOS_CHECKER_URL % urllib.urlencode({'q' : entity})))
-      obj = CacheObject(60*60)
-      self.cache.store(KOS_CHECKER_URL, KOS_CHECKER_URL,
-                       {'entity': entity}, result, obj)
+      self.cache.put(cache_key, result, 60*60)
 
     kos = None
     for value in result['results']:
@@ -184,17 +108,15 @@ class KosChecker:
 
   def employment_history(self, character):
     """Retrieves a player's most recent corporations via EVE api."""
-    cid = self.eveapi.eve.CharacterID(
-        names=character).characters[0].characterID
-    cdata = self.eveapi.eve.CharacterInfo(characterID=cid)
-    corps = [row.corporationID for row in cdata.employmentHistory]
+    cid = self.eve.character_id_from_name(character)
+    cdata = self.eve.character_info_from_id(cid)
+    corps = cdata['history']
     unique_corps = []
-    for value in corps:
-      if value not in unique_corps:
-        unique_corps.append(value)
-    return [row.name for row in
-                self.eveapi.eve.CharacterName(
-                    ids=','.join(str(x) for x in unique_corps)).characters]
+    for corp in corps:
+      if corp['corp_id'] not in unique_corps:
+        unique_corps.append(corp['corp_id'])
+    mapping = self.eve.character_names_from_ids(unique_corps)
+    return [mapping[cid] for cid in unique_corps]
 
   def loop(self, filename, handler):
     """Performs KOS processing on each line read from the log file.
