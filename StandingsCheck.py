@@ -1,32 +1,33 @@
 #!/usr/bin/python
 
-from eveapi import eveapi
+from evelink import api, char, corp, eve
 import ChatKosLookup
 import sys
 
 MAX_NPC_AGENT = 3020000
 
 class StandingsChecker:
-  def __init__(self, keyID, vCode):
+  def __init__(self, keyID, vCode, char_id):
     self.checker = ChatKosLookup.KosChecker()
-    self.eveapi = self.checker.eveapi.auth(keyID=keyID, vCode=vCode)
+    self.cache = self.checker.cache
+
+    self.api = api.API(cache=self.cache, api_key=(keyID, vCode))
+    self.corp = corp.Corp(api=self.api)
+    self.eve = eve.EVE(api=self.api)
+    self.char = char.Char(api=self.api, char_id=char_id)
 
   def check(self):
-    contacts = self.eveapi.char.ContactList()
+    contacts = self.char.contacts()
 
-    print 'Personal'
-    self.check_internal(contacts.contactList)
-    print 'Corp'
-    self.check_internal(contacts.corporateContactList)
-    print 'Alliance'
-    self.check_internal(contacts.allianceContactList)
+    for (key, value) in contacts.items():
+      print key
+      self.check_internal(value)
 
   def check_internal(self, contacts):
-    entities = [(row.contactID, row.contactName, row.standing)
-                for row in contacts if row.contactID > MAX_NPC_AGENT]
+    entities = [(row['id'], row['name'], row['standing'])
+                for row in contacts.values() if row['id'] > MAX_NPC_AGENT]
 
-    alive_alliances = [row.allianceID for row in
-        self.checker.eveapi.eve.AllianceList(version=1).alliances]
+    alive_alliances = self.eve.alliances().keys()
 
     remove = {}
     demote = {}
@@ -60,21 +61,23 @@ class StandingsChecker:
 
   def valid_corp(self, eid):
     try:
-      ret = self.checker.eveapi.corp.CorporationSheet(corporationID=eid)
-      return (ret.ceoID != 0)
-    except eveapi.Error:
+      ret = self.corp.corporation_sheet(corp_id=eid)
+      return (ret['ceo']['id'] != 0)
+    except api.APIError:
       return False
 
   def valid_char(self, eid):
     try:
-      self.checker.eveapi.eve.CharacterInfo(characterID=eid)
+      self.eve.character_info_from_id(char_id=eid)
       return True
-    except eveapi.Error:
-      return False    
+    except api.APIError:
+      return False
+    except ValueError:
+      return False
 
 if __name__ == '__main__':
-  if len(sys.argv) > 2:
-    StandingsChecker(sys.argv[1], sys.argv[2]).check()
+  if len(sys.argv) > 3:
+    StandingsChecker(sys.argv[1], sys.argv[2], sys.argv[3]).check()
   else:
     print ('Usage: %s keyID vCode' % sys.argv[0])
 

@@ -1,6 +1,3 @@
-[submodule "eveapi"]
-	path = eveapi
-	url = git://github.com/lizthegrey/eveapi.git
 [submodule "evelink-api"]
 	path = evelink-api
 	url = git://github.com/eve-val/evelink.git
